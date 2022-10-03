@@ -5,6 +5,8 @@ using PyCall
 using Graphs, SciPy
 using GraphPlot
 
+const PATH = "data/japan-motorway.json"
+df_master = load_master(PATH)
 
 function line_plot(dataframe)
     cplotly = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"]
@@ -42,44 +44,46 @@ function line_plot(dataframe)
     )
     plot(fig, layout)
 end
+# line_plot(df)
 
 function load_master(path)
     return GeoDataFrames.read(path)
 end
 
 function convert2laton(df, ordered_idx)
-    lat = []
+    name = df.name[begin]
     lon = []
-    name = []
+    lat = []
     group = []
     type = []
 
     for index in eachindex(ordered_idx)
         for i in ordered_idx[index] #1:size(df)[1]
-            lats = Float64[]
-            lons = Float64[]
-            names = String[]
-            groups = String[]
-            types = String[]
             n_points = ArchGDAL.ngeom(df[!, :geometry][i])
-            for j in 0:n_points-1
-                push!(lons, ArchGDAL.getx(df[!, :geometry][i], j))
-                push!(lats, ArchGDAL.gety(df[!, :geometry][i], j))
-                push!(names, df[!, :name][i])
-                push!(types, df[!, :highway][i])
-                # push!(groups, df[!, :name][i] * "$(g2[i])")
-                push!(groups, df[!, :name][i] * "$(i)")
-            end
-            push!(lat, lats)
+
+            lons = Float64[ArchGDAL.getx(df[!, :geometry][i], j) for j in 0:n_points-1]
+            lats = Float64[ArchGDAL.gety(df[!, :geometry][i], j) for j in 0:n_points-1]
+            groups = fill(name * "$(index)", n_points)
+            types = fill(df.highway[i], n_points)
+
             push!(lon, lons)
-            push!(name, names)
+            push!(lat, lats)
             push!(group, groups)
             push!(type, types)
         end
     end
 
-    df = DataFrame("lon" => vcat(lon...), "lat" => vcat(lat...), "group" => vcat(group...), "type" => vcat(type...), "name" => vcat(name...))
+    df = DataFrame("lon" => vcat(lon...), "lat" => vcat(lat...), "group" => vcat(group...), "type" => vcat(type...), "name" => name)
     return df
+end
+
+function order_convert(dataframe)
+    l = []
+    for nom in unique(dataframe, :name).name
+        dataframe2 = dataframe[dataframe.name.==nom, :]
+        push!(l, @time convert2laton(dataframe2, order(dataframe2)))
+    end
+    return vcat(l...)
 end
 
 function make_2df(df_master, objectif, mode)
@@ -149,18 +153,12 @@ function order(dft)
     return ordered
 end
 
-PATH = "data/japan-motorway.json"
-df_master = load_master(PATH)
-OBJECTIF = "名阪"
-
-df_tmp = make_2df(df_master, OBJECTIF, "contain")
-ordered_index = @time order(df_tmp)
-# df = convert2laton(df_tmp, ordered_index)
-# line_plot(df)
-
-
 begin
-    df = convert2laton(df_tmp, ordered_index)
+    OBJECTIF = "名阪"
+    df_tmp = make_2df(df_master, OBJECTIF, "contain")
+    # ordered_index = @time order(df_tmp)
+    # df = convert2laton(df_tmp, ordered_index)
+    df = order_convert(df_tmp)
 
     fig = px.line_mapbox(
         lat=df.lat,
@@ -180,6 +178,11 @@ begin
 end
 
 
+
+# unique(df, :name).name
+# a = []
+# push!(a, df)
+# aa = vcat(a...)
 
 # a = df_tmp.geometry[1]
 # a = ArchGDAL.createlinestring()
