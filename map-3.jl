@@ -151,7 +151,7 @@ end
 
 PATH = "data/japan-motorway.json"
 df_master = load_master(PATH)
-OBJECTIF = "東名"
+OBJECTIF = "名阪"
 
 df_tmp = make_2df(df_master, OBJECTIF, "contain")
 ordered_index = @time order(df_tmp)
