@@ -69,14 +69,19 @@ function convert2laton(df, ordered_idx)
             reverse_check > 1 && if lons[end] == lon[end][end] # task 1 b==d
                 reverse!(lons)
                 reverse!(lats)
+                print("1 ")
             elseif lons[end] == lon[end][begin] # task 2 b==c
                 reverse!(lons)
                 reverse!(lats)
                 reverse!(lon[end])
                 reverse!(lat[end])
-            elseif lons[end] == lon[end][begin] # task 3 a==c
+                print("2 ")
+            elseif lons[begin] == lon[end][begin] # task 3 a==c
                 reverse!(lon[end])
                 reverse!(lat[end])
+                print("3 ")
+                # elseif ~((lons[begin] == lon[end][end]) && (lons[end] != lon[end][begin])) # <- 最終手段感がある
+                #     continue
             end
 
             push!(lon, lons)
@@ -84,9 +89,9 @@ function convert2laton(df, ordered_idx)
             push!(group, groups)
             push!(type, types)
 
-            # reverse_check == 1 && println("lon[begin], lon[end], lon[end-1][begin], lon[end-1][end]")
+            (index == 1 && reverse_check == 1) && println("lon[begin], lon[end], lon[end-1][begin], lon[end-1][end]")
             # reverse_check > 1 && println(lons[begin], "\t", lons[end], "\t", lon[end-1][begin], "\t", lon[end-1][end], "\t", lons[begin] == lon[end-1][end], "\t", lons[end] == lon[end-1][begin], "\t", (lons[begin] == lon[end-1][end]) && (lons[end] != lon[end-1][begin]))
-            # reverse_check > 1 && println(lats[begin], "\t", lats[end], "\t", lat[end-1][begin], "\t", lat[end-1][end], "\t", lats[begin] == lat[end-1][end], "\t", lats[end] == lat[end-1][begin], "\t", (lats[begin] == lat[end-1][end]) || (lats[end] == lat[end-1][begin]))
+            reverse_check > 1 && println(lats[begin], "\t", lats[end], "\t", lat[end-1][begin], "\t", lat[end-1][end], "\t", lats[begin] == lat[end-1][end], "\t", lats[end] == lat[end-1][begin], "\t", (lats[begin] == lat[end-1][end]) || (lats[end] == lat[end-1][begin]))
         end
     end
 
@@ -138,7 +143,8 @@ function order(dft)
 
     for group_no in eachindex(g2) # 1:gg[1]
         idx = g2[group_no]
-        println(idx)
+        # println(idx)
+
         a = Int[]
         temp = idx[1]
         push!(a, temp)
@@ -170,18 +176,18 @@ function order(dft)
 end
 
 begin
-    OBJECTIF = "首都"
-    df_motorway, df_motorway_link = make_2df(df_master, OBJECTIF, "start")
+    OBJECTIF = "札樽"
+    df_motorway, df_motorway_link = make_2df(df_master, OBJECTIF, "contain")
     df = order_convert(df_motorway)
-    ~isempty(df_motorway_link) && (df = vcat(df, order_convert(df_motorway_link)))
+    # ~isempty(df_motorway_link) && (df = vcat(df, order_convert(df_motorway_link)))
 
     fig = px.line_mapbox(
         lat=df.lat,
         lon=df.lon,
         color=df.name,
         line_group=df.group,
-        # mapbox_style="carto-darkmatter",
-        mapbox_style="open-street-map",
+        mapbox_style="carto-darkmatter",
+        # mapbox_style="open-street-map",
         template="ggplot2",
         zoom=7,
         width=1280,
@@ -193,7 +199,8 @@ begin
 end
 
 
-# unique(df, :name).name
+
+
 
 # a = df_tmp.geometry[1]
 # a = ArchGDAL.createlinestring()
