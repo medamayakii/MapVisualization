@@ -48,6 +48,86 @@ end
 const PATH = "data/japan-motorway.json"
 df_master = load_master(PATH)
 
+function make_2df(df_master, objectif, mode)
+    df = df_master[df_master.name.!=nothing, :]
+    df = df[!, [:name, :highway, :geometry]]
+    # df = df[df.highway.=="motorway", :]
+    sort!(df, :name)
+
+    if mode == "start"
+        df = df[startswith.(df.name, objectif), :]
+    elseif mode == "end"
+        df = df[endswith.(df.name, objectif), :]
+    elseif mode == "contain"
+        df = df[occursin.(objectif, df.name), :]
+    else
+        error("Mode shoule be start, end, or contain.")
+    end
+
+    return df[df.highway.=="motorway", :], df[df.highway.=="motorway_junction", :]
+end
+
+function order_convert(dataframe)
+    l = []
+    for nom in unique(dataframe, :name).name
+        dataframe2 = dataframe[dataframe.name.==nom, :]
+        push!(l, convert2laton(dataframe2, order(dataframe2)))
+    end
+    return vcat(l...)
+end
+
+function order(dataframe)
+    #-------------------initialiser-start------------------#
+    g = Array{Bool}(undef, (length(dataframe.geometry), length(dataframe.geometry)))
+    for i in eachindex(dataframe.geometry)
+        for j in i:length(dataframe.geometry)
+            g[i, j] = ArchGDAL.touches(dataframe.geometry[i], dataframe.geometry[j])
+            g[j, i] = g[i, j]
+        end
+    end
+    g2 = connected_components(SimpleGraph(g))       # グループのインデックス
+    g3 = Set.(Graphs.SimpleGraphs.adj(SimpleGraph(g)))    # 隣接リスト
+
+    ordered = Vector{Int}[]
+    for group_no in eachindex(g2)
+        idx = g2[group_no]
+
+        slist = Set(idx)
+        srted_index_list = Int[]
+        dir = 1 # 1:forward(pushfirst), -1:backword(push)
+        previous = present = idx[begin]
+
+        push!(srted_index_list, present)
+        #-------------------initialiser-end--------------------#
+        #---------------------loop----srart--------------------#
+        while ~isempty(slist)
+            # begin
+            ~isempty(g3[present]) ? present = pop!(g3[present]) : break
+            isempty(g3[previous]) && pop!(slist, previous)
+            dir == 1 ? pushfirst!(srted_index_list, present) : push!(srted_index_list, present)
+            pop!(g3[present], previous)
+            isempty(g3[present]) && begin
+                pop!(slist, present)
+                if srted_index_list[end] in slist
+                    previous = present = srted_index_list[end]
+                    dir = -1
+                    continue
+                elseif ~isempty(slist)
+                    push!(ordered, srted_index_list)
+                    srted_index_list = Int[]
+                    previous = present = pop!(slist)
+                    push!(slist, present)
+                    continue
+                end
+            end
+            previous = present
+        end
+        #-------------------loop----end--------------------#
+        push!(ordered, srted_index_list)
+    end
+    return ordered
+end
+
 function convert2laton(df, ordered_idx)
     name = df.name[begin]
     lon = []
@@ -99,89 +179,13 @@ function convert2laton(df, ordered_idx)
     return df
 end
 
-function order_convert(dataframe)
-    l = []
-    for nom in unique(dataframe, :name).name
-        dataframe2 = dataframe[dataframe.name.==nom, :]
-        push!(l, convert2laton(dataframe2, order2(dataframe2)))
-    end
-    return vcat(l...)
-end
-
-function make_2df(df_master, objectif, mode)
-    df = df_master[df_master.name.!=nothing, :]
-    df = df[!, [:name, :highway, :geometry]]
-    # df = df[df.highway.=="motorway", :]
-    sort!(df, :name)
-
-    if mode == "start"
-        df = df[startswith.(df.name, objectif), :]
-    elseif mode == "end"
-        df = df[endswith.(df.name, objectif), :]
-    elseif mode == "contain"
-        df = df[occursin.(objectif, df.name), :]
-    else
-        error("Mode shoule be start, end, or contain.")
-    end
-
-    return df[df.highway.=="motorway", :], df[df.highway.=="motorway_link", :]
-end
-
-function order(dft)
-    g = Array{Bool}(undef, (length(dft.geometry), length(dft.geometry)))
-    #  g .= (ArchGDAL.touches(dft.geometry[i], dft.geometry[j]) for i in 1:length(dft.geometry), j in 1:length(dft.geometry))
-    for i in eachindex(dft.geometry)
-        for j in i:length(dft.geometry)
-            g[i, j] = ArchGDAL.touches(dft.geometry[i], dft.geometry[j])
-            g[j, i] = g[i, j]
-        end
-    end
-
-    g2 = connected_components(SimpleGraph(g))
-    g3 = Graphs.SimpleGraphs.adj(SimpleGraph(g))
-    ordered = Vector{Int}[]
-
-    for group_no in eachindex(g2) # 1:gg[1]
-        idx = g2[group_no]
-        # println(idx)
-
-        a = Int[]
-        temp = idx[1]
-        push!(a, temp)
-        for i in eachindex(idx)
-            # temp = g4[idx[temp]]
-            if i == 1
-                length(g2[group_no]) != 1 ? (temp = g3[idx[i]][1]) : break
-            end
-
-            pushfirst!(a, temp...)
-            temp = [i for i in vcat(g3[temp]...) if i ∉ a]
-            isempty(temp) && break
-
-            # println(i, " ", j, " $(temp)")
-        end
-        for i in eachindex(idx)
-            if i == 1
-                (length(g3[idx[i]]) > 1 && length(g2[group_no]) != 1) ? (temp = g3[idx[i]][2]) : break
-            end
-
-            a = vcat(a, temp...)
-            temp = [i for i in vcat(g3[temp]...) if i ∉ a]
-            isempty(temp) && break
-        end
-        push!(ordered, a)
-    end
-    # println(ordered)
-    return ordered
-end
 
 
 begin
-    OBJECTIF = "名阪"
+    OBJECTIF = "首都高速"
     df_motorway, df_motorway_link = make_2df(df_master, OBJECTIF, "contain")
     df = order_convert(df_motorway)
-    # unique!(df)
-    # ~isempty(df_motorway_link) && (df = vcat(df, order_convert(df_motorway_link)))
+    ~isempty(df_motorway_link) && (df = vcat(df, order_convert(df_motorway_link)))
 
     fig = px.line_mapbox(
         lat=df.lat,
@@ -199,22 +203,3 @@ begin
     fig.update_layout(margin=Dict(:b => 0, :l => 0, :r => 150, :t => 60), title_font_size=24)
     fig.write_html("sample/test_jupy.html")
 end
-
-
-
-# a = DataFrame("a" => a)
-# plot(a, x=:a, kind="histogram", nbinsx=maximum(a.a))
-
-# a = df_tmp.geometry[1]
-# a = ArchGDAL.createlinestring()
-# b = ArchGDAL.createmultilinestring()
-# ArchGDAL.getgeomtype(a)
-# ArchGDAL.getgeomtype(b)
-
-# for i in df_tmp.geometry
-#     if Int(ArchGDAL.getgeomtype(i)) == 2
-#         print("line")
-#     elseif Int(ArchGDAL.getgeomtype(i)) == 5
-#         println("multiline")
-#     end
-# end
