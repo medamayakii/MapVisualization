@@ -64,7 +64,7 @@ function make_2df(df_master, objectif, mode)
         error("Mode shoule be start, end, or contain.")
     end
 
-    return df[df.highway.=="motorway", :], df[df.highway.=="motorway_junction", :]
+    return df[df.highway.=="motorway", :], df[df.highway.=="motorway_link", :]
 end
 
 function order_convert(dataframe)
@@ -192,8 +192,8 @@ begin
         lon=df.lon,
         color=df.name,
         line_group=df.group,
-        mapbox_style="carto-darkmatter",
-        # mapbox_style="open-street-map",
+        # mapbox_style="carto-darkmatter",
+        mapbox_style="open-street-map",
         template="ggplot2",
         zoom=7,
         width=1280,
