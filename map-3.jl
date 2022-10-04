@@ -1,12 +1,8 @@
 using PlotlyJS, PyPlotly
 using DataFrames, CSV
 using GeoDataFrames, ArchGDAL
-using PyCall
-using Graphs, SciPy
-using GraphPlot
+using Graphs
 
-const PATH = "data/japan-motorway.json"
-df_master = load_master(PATH)
 
 function line_plot(dataframe)
     cplotly = ["#636EFA", "#EF553B", "#00CC96", "#AB63FA", "#FFA15A", "#19D3F3", "#FF6692", "#B6E880", "#FF97FF", "#FECB52"]
@@ -49,6 +45,8 @@ end
 function load_master(path)
     return GeoDataFrames.read(path)
 end
+const PATH = "data/japan-motorway.json"
+df_master = load_master(PATH)
 
 function convert2laton(df, ordered_idx)
     name = df.name[begin]
@@ -58,18 +56,29 @@ function convert2laton(df, ordered_idx)
     type = []
 
     for index in eachindex(ordered_idx)
-        for i in ordered_idx[index] #1:size(df)[1]
+        for (reverse_check, i) in enumerate(ordered_idx[index]) #1:size(df)[1]
             n_points = ArchGDAL.ngeom(df[!, :geometry][i])
 
-            lons = Float64[ArchGDAL.getx(df[!, :geometry][i], j) for j in 0:n_points-1]
-            lats = Float64[ArchGDAL.gety(df[!, :geometry][i], j) for j in 0:n_points-1]
-            groups = fill(name * "$(index)", n_points)
+            lons = [ArchGDAL.getx(df[!, :geometry][i], j) for j in 0:n_points-1]
+            lats = [ArchGDAL.gety(df[!, :geometry][i], j) for j in 0:n_points-1]
+            groups = fill(name * "_$(df.highway[i])_$(index)", n_points)
             types = fill(df.highway[i], n_points)
+
+            # reverse_check == 1 && println("lon[end][begin], lon[end][end], lon[end-1][begin], lon[end-1][end]")
+            (reverse_check > 1 && lons[begin] != lon[end][end]) && begin
+                reverse!(lons)
+                reverse!(lats)
+            end
+            # reverse_check > 1 && lons[begin] == lon[end-1][end]
 
             push!(lon, lons)
             push!(lat, lats)
             push!(group, groups)
             push!(type, types)
+
+            # reverse_check == 1 && println("lon[end][begin], lon[end][end], lon[end-1][begin], lon[end-1][end]")
+            # reverse_check > 1 && println(lons[begin], "\t", lons[end], "\t", lon[end-1][begin], "\t", lon[end-1][end], "\t", lons[begin] == lon[end-1][end], "\t", lons[end] == lon[end-1][begin], "\t", (lons[begin] == lon[end-1][end]) || (lons[end] == lon[end-1][begin]))
+            # reverse_check > 1 && println(lats[begin], "\t", lats[end], "\t", lat[end-1][begin], "\t", lat[end-1][end], "\t", lats[begin] == lat[end-1][end], "\t", lats[end] == lat[end-1][begin], "\t", (lats[begin] == lat[end-1][end]) || (lats[end] == lat[end-1][begin]))
         end
     end
 
@@ -81,7 +90,7 @@ function order_convert(dataframe)
     l = []
     for nom in unique(dataframe, :name).name
         dataframe2 = dataframe[dataframe.name.==nom, :]
-        push!(l, @time convert2laton(dataframe2, order(dataframe2)))
+        push!(l, convert2laton(dataframe2, order(dataframe2)))
     end
     return vcat(l...)
 end
@@ -102,9 +111,7 @@ function make_2df(df_master, objectif, mode)
         error("Mode shoule be start, end, or contain.")
     end
 
-    # df |> CSV.write("data/aaa.csv")
-    # df2 = convert2laton(df)
-    return df #, df2
+    return df[df.highway.=="motorway", :], df[df.highway.=="motorway_link", :]
 end
 
 function order(dft)
@@ -130,7 +137,7 @@ function order(dft)
         for i in eachindex(idx)
             # temp = g4[idx[temp]]
             if i == 1
-                length(g2[group_no]) != 1 && (temp = g3[idx[i]][1])
+                length(g2[group_no]) != 1 ? (temp = g3[idx[i]][1]) : break
             end
 
             pushfirst!(a, temp...)
@@ -154,11 +161,10 @@ function order(dft)
 end
 
 begin
-    OBJECTIF = "名阪"
-    df_tmp = make_2df(df_master, OBJECTIF, "contain")
-    # ordered_index = @time order(df_tmp)
-    # df = convert2laton(df_tmp, ordered_index)
-    df = order_convert(df_tmp)
+    OBJECTIF = "札樽"
+    df_motorway, df_motorway_link = make_2df(df_master, OBJECTIF, "start")
+    df = order_convert(df_motorway)
+    ~isempty(df_motorway_link) && (df = vcat(df, order_convert(df_motorway_link)))
 
     fig = px.line_mapbox(
         lat=df.lat,
@@ -166,23 +172,20 @@ begin
         color=df.name,
         line_group=df.group,
         mapbox_style="carto-darkmatter",
+        # mapbox_style="open-street-map",
         template="ggplot2",
         zoom=7,
         width=1280,
         height=720,
         title="<b>$OBJECTIF"
     )
-    fig.update_layout(margin_b=0, margin_l=0, margin_r=150, margin_t=60, title_font_size=24)
-    # fig.show()
+    fig.update_layout(margin=Dict(:b => 0, :l => 0, :r => 150, :t => 60), title_font_size=24)
     fig.write_html("sample/test_jupy.html")
 end
 
 
 
 # unique(df, :name).name
-# a = []
-# push!(a, df)
-# aa = vcat(a...)
 
 # a = df_tmp.geometry[1]
 # a = ArchGDAL.createlinestring()
