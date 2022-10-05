@@ -144,8 +144,6 @@ function convert2laton(df, ordered_idx)
             groups = fill(name * "_$(df.highway[i])_$(index)", n_points) # i or index(better)
             types = fill(df.highway[i], n_points)
 
-            # reverse_check == 1 && println("lon[end][begin], lon[end][end], lon[end-1][begin], lon[end-1][end]")
-
             reverse_check > 1 && if lons[end] == lon[end][end] # task 1 b==d
                 reverse!(lons)
                 reverse!(lats)
@@ -160,8 +158,8 @@ function convert2laton(df, ordered_idx)
                 reverse!(lon[end])
                 reverse!(lat[end])
                 # print("3 ")
-                # elseif ~((lons[begin] == lon[end][end]) && (lons[end] != lon[end][begin])) # <- 最終手段感がある
-                #     continue
+            elseif (lons[begin] != lon[end][end]) || (lons[end] == lon[end][begin])
+                continue
             end
 
             push!(lon, lons)
@@ -174,11 +172,8 @@ function convert2laton(df, ordered_idx)
             # reverse_check > 1 && println(lats[begin], "\t", lats[end], "\t", lat[end-1][begin], "\t", lat[end-1][end], "\t", lats[begin] == lat[end-1][end], "\t", lats[end] == lat[end-1][begin], "\t", (lats[begin] == lat[end-1][end]) || (lats[end] == lat[end-1][begin]))
         end
     end
-
-    df = DataFrame("lon" => vcat(lon...), "lat" => vcat(lat...), "group" => vcat(group...), "type" => vcat(type...), "name" => name)
-    return df
+    return DataFrame("lon" => vcat(lon...), "lat" => vcat(lat...), "group" => vcat(group...), "type" => vcat(type...), "name" => name)
 end
-
 
 
 begin
@@ -192,8 +187,8 @@ begin
         lon=df.lon,
         color=df.name,
         line_group=df.group,
-        # mapbox_style="carto-darkmatter",
-        mapbox_style="open-street-map",
+        mapbox_style="carto-darkmatter",
+        # mapbox_style="open-street-map",
         template="ggplot2",
         zoom=7,
         width=1280,
