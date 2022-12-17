@@ -117,6 +117,7 @@ function order(dataframe)
                     srted_index_list = Int[]
                     previous = present = pop!(slist)
                     push!(slist, present)
+                    dir = 1
                     continue
                 end
             end
